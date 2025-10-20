@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Cardiac Tickets</title>
+
+<style>
+  :root{
+    --bg:#ffffff; --ink:#111; --muted:#6b7280;
+    --card:#000; --cardInk:#fff;
+    --ok:#1f9d49; --warn:#f59e0b; --danger:#e23c39;
+    --cell:#fff; --cellInk:#111; --cellOn:#000; --cellOnInk:#fff;
+    --cellNoShow:#8d8f94; --cellPrinted:#1f9d49; --cellPrintedInk:#fff;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans";
+  }
+  .wrap{max-width:1100px; margin:24px auto 40px; padding:0 12px}
+
+  /* Range buttons */
+  .ranges{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));
+    gap:12px;
+    margin:0 0 18px;
+  }
+  .rbtn{
+    background:#eef0f3; border:0; border-radius:12px; padding:12px 14px;
+    font-size:18px; font-weight:700; color:#1d4ed8; cursor:pointer;
+  }
+  .rbtn.active{background:#000; color:#fff}
+
+  /* Black card panel */
+  .board{
+    background:var(--card); color:var(--cardInk);
+    border-radius:18px; padding:24px 16px 20px; margin:0 0 16px;
+    box-shadow:0 10px 30px rgba(0,0,0,.08);
+    text-align:center;
+  }
+  .label{font-size:34px; font-weight:800; letter-spacing:.5px; margin:0 0 10px}
+  .bigNum{font-size:82px; line-height:1; font-weight:800; margin:6px 0 8px}
+  .mrn{font-size:18px; color:#c9cdd2; min-height:22px; margin:2px 0 10px}
+
+  /* Action buttons */
+  .actions{display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top:8px}
+  .btn{
+    border:0; border-radius:12px; padding:12px 18px; font-size:20px; font-weight:700; color:#fff; cursor:pointer;
+    box-shadow:0 6px 18px rgba(0,0,0,.15)
+  }
+  .btn.next{background:var(--ok)}
+  .btn.noshow{background:var(--warn); color:#111}
+  .btn.reset{background:var(--danger)}
+
+  /* Grid: AUTO-FIT to screen size (no horizontal scroll) */
+  .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    gap:10px;
+    margin:16px 0 8px;
+    width:100%;
+  }
+  .cell{
+    background:var(--cell); color:var(--cellInk);
+    border:2px solid #2b2b2b44; border-radius:12px; padding:14px 0;
+    font-size:22px; font-weight:700; text-align:center; cursor:pointer;
+    user-select:none; transition:transform .05s ease, background .15s, color .15s, border-color .15s;
+  }
+  .cell:active{transform:scale(.98)}
+  .cell.on{background:var(--cellOn); color:var(--cellOnInk); border-color:#000}
+  .cell.noshow{background:var(--cellNoShow); color:#fff; border-color:#6b7280}
+  .cell.printed{background:var(--cellPrinted); color:var(--cellPrintedInk); border-color:#11893a}
+
+  /* Tip */
+  .tip{
+    margin:14px 0 6px; font-size:14px; color:var(--muted); text-align:center
+  }
+
+  /* Small screens */
+  @media (max-width:480px){
+    .label{font-size:28px}
+    .bigNum{font-size:56px}
+    .cell{font-size:18px; padding:12px 0}
+    .grid{grid-template-columns: repeat(auto-fit, minmax(48px, 1fr)); gap:8px}
+  }
+</style>
+
+<!-- Firebase compat (no bundler needed) -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- Range buttons -->
+    <div id="ranges" class="ranges"></div>
+
+    <!-- Black card -->
+    <section class="board" aria-live="polite">
+      <div class="label">Now Serving</div>
+      <div id="bigNum" class="bigNum">—</div>
+      <div id="mrnLine" class="mrn"></div>
+
+      <div class="actions">
+        <button class="btn next" id="btnNext">Next</button>
+        <button class="btn noshow" id="btnNoShow">No Show</button>
+        <button class="btn reset" id="btnReset">Restart</button>
+      </div>
+    </section>
+
+    <!-- Number grid -->
+    <div id="grid" class="grid" role="grid" aria-label="Ticket numbers"></div>
+
+    <div class="tip" id="tip">
+      <strong>Tip:</strong> Green indicates existing patients, black indicates served patients, and gray indicates no-show patients.
+      Double-click a black number to turn it white, or press <b>Restart</b> to clear all numbers.
+    </div>
+  </div>
+
+<script>
+/* ========= Firebase config ========= */
+const firebaseConfig = {
+  apiKey: "AIzaSyCWWnMsge75Q3_MDF9Aj9wo4C5KD6RVGfw",
+  authDomain: "q-matic-b7d77.firebaseapp.com",
+  databaseURL: "https://q-matic-b7d77-default-rtdb.firebaseio.com",
+  projectId: "q-matic-b7d77",
+  storageBucket: "q-matic-b7d77.appspot.com",
+  messagingSenderId: "908187704899",
+  appId: "1:908187704899:web:b8bcf33cda90bafe81bef6"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+/* ======= Namespace for Cardiac operator ======= */
+const BASE = "cardiac";
+
+/* ========= DOM refs ========= */
+const rangesEl = document.getElementById('ranges');
+const gridEl   = document.getElementById('grid');
+const bigNumEl = document.getElementById('bigNum');
+const mrnEl    = document.getElementById('mrnLine');
+const btnNext  = document.getElementById('btnNext');
+const btnNoShow= document.getElementById('btnNoShow');
+const btnReset = document.getElementById('btnReset');
+
+/* ========= Build range buttons (1–1000 in 100s) ========= */
+const ranges = [];
+for(let start=1; start<=1000; start+=100){
+  ranges.push([start, Math.min(start+99, 1000)]);
+}
+let currentRangeIndex = 0;
+let latestNumber = null;
+
+/* Create UI for ranges */
+ranges.forEach((r, idx)=>{
+  const b = document.createElement('button');
+  b.className = 'rbtn' + (idx===0 ? ' active' : '');
+  b.textContent = `${r[0]}–${r[1]}`;
+  b.addEventListener('click', ()=>showRange(idx));
+  rangesEl.appendChild(b);
+});
+
+/* ========= Grid rendering & live sync ========= */
+let unsubscribeFns = []; // detach old listeners when switching range
+function clearListeners(){ unsubscribeFns.forEach(fn=>fn && fn()); unsubscribeFns = []; }
+
+function showRange(idx){
+  currentRangeIndex = idx;
+  [...rangesEl.children].forEach((c,i)=>c.classList.toggle('active', i===idx));
+
+  const [start, end] = ranges[idx];
+  gridEl.innerHTML = '';
+  clearListeners();
+
+  for(let n=start; n<=end; n++){
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.textContent = n;
+
+    // Click = mark Served (black) + set latest
+    cell.addEventListener('click', ()=> setServed(n));
+    // Double-click black → white (clear all states)
+    cell.addEventListener('dblclick', ()=> clearNumber(n));
+
+    gridEl.appendChild(cell);
+
+    // Live statuses: served (black), noshow (gray), printed (green)
+    const off1 = db.ref(`${BASE}/served/${n}`).on('value', snap=>{
+      cell.classList.toggle('on', !!snap.val());
+    });
+    const off2 = db.ref(`${BASE}/noshow/${n}`).on('value', snap=>{
+      cell.classList.toggle('noshow', !!snap.val());
+    });
+    const off3 = db.ref(`${BASE}/printed/${n}`).on('value', snap=>{
+      cell.classList.toggle('printed', !!snap.val());
+    });
+    unsubscribeFns.push(
+      ()=>db.ref(`${BASE}/served/${n}`).off('value', off1),
+      ()=>db.ref(`${BASE}/noshow/${n}`).off('value', off2),
+      ()=>db.ref(`${BASE}/printed/${n}`).off('value', off3),
+    );
+  }
+}
+
+/* ========= Latest number + MRN ========= */
+db.ref(`${BASE}/latest`).on('value', snap=>{
+  const data = snap.val();
+  latestNumber = data && data.number ? Number(data.number) : null;
+  bigNumEl.textContent = latestNumber ?? '—';
+
+  // MRN only if exists: /cardiac/mrn/{number}
+  if(latestNumber){
+    db.ref(`${BASE}/mrn/${latestNumber}`).once('value').then(s=>{
+      const m = s.val();
+      mrnEl.textContent = m ? `MRN: ${m}` : '';
+    });
+  } else {
+    mrnEl.textContent = '';
+  }
+
+  // Auto-switch range if needed
+  if(latestNumber){
+    const idx = Math.floor((latestNumber-1)/100);
+    if(idx!==currentRangeIndex){ showRange(idx); }
+  }
+});
+
+/* ========= Actions ========= */
+function setLatest(number){
+  db.ref(`${BASE}/latest`).set({ number, ts: Date.now() });
+}
+function setServed(n){
+  db.ref(`${BASE}/served/${n}`).set(true);     // black
+  db.ref(`${BASE}/noshow/${n}`).remove();      // not gray
+  setLatest(n);
+}
+function clearNumber(n){
+  db.ref(`${BASE}/served/${n}`).remove();
+  db.ref(`${BASE}/noshow/${n}`).remove();
+  db.ref(`${BASE}/printed/${n}`).remove();
+}
+
+btnNext.addEventListener('click', ()=>{
+  const start = ranges[currentRangeIndex][0];
+  let n = latestNumber ? latestNumber+1 : start;
+  if(n>1000) n = 1;
+  setServed(n);
+});
+btnNoShow.addEventListener('click', ()=>{
+  if(!latestNumber) return;
+  db.ref(`${BASE}/noshow/${latestNumber}`).set(true);
+  db.ref(`${BASE}/served/${latestNumber}`).remove();
+});
+btnReset.addEventListener('click', ()=>{
+  const ok = confirm('Are you sure you want to clear all numbers and restart?');
+  if(!ok) return;
+  db.ref(`${BASE}/served`).remove();
+  db.ref(`${BASE}/noshow`).remove();
+  db.ref(`${BASE}/printed`).remove();
+  db.ref(`${BASE}/latest`).set({ number: null, ts: Date.now() });
+});
+
+/* Initial render */
+showRange(0);
+</script>
+</body>
+</html>
