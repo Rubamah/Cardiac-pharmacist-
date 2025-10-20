@@ -57,12 +57,11 @@
   <div id="grid" class="grid"></div>
 
   <p class="tip">
-    Tip: green = existing patient (printed), black = served patient, gray = no-show. Double-tap a black cell to clear it, or press Restart to clear all.
+    Tip: green = existing patient (printed), black = served patient, gray = no-show. Double-click (or double-tap) a black/gray cell to clear it back to white; Restart clears all.
   </p>
 
 <script>
 (function(){
-  // Firebase config / root
   const cfg={apiKey:"AIzaSyCWWnMsge75Q3_MDF9Aj9wo4C5KD6RVGfw",authDomain:"q-matic-b7d77.firebaseapp.com",databaseURL:"https://q-matic-b7d77-default-rtdb.firebaseio.com",projectId:"q-matic-b7d77",storageBucket:"q-matic-b7d77.appspot.com",messagingSenderId:"908187704899",appId:"1:908187704899:web:b8bcf33cda90bafe81bef6"};
   firebase.initializeApp(cfg);
   const db=firebase.database();
@@ -73,7 +72,7 @@
   const nowMrn=document.getElementById("nowMrn");
   const rangesEl=document.getElementById("ranges");
 
-  // Build range buttons 1..1000
+  // ranges 1..1000
   const buttons=[];
   for(let s=1;s<=1000;s+=100){
     const b=document.createElement("button");
@@ -83,37 +82,49 @@
     buttons.push(b);
   }
   buttons[0].classList.add("active");
+  const setActive=b=>buttons.forEach(x=>x.classList.toggle("active",x===b));
 
-  function setActive(b){buttons.forEach(x=>x.classList.remove("active")); b.classList.add("active");}
-
-  // Live caches (kept in sync + updated immediately on local actions)
+  // live caches
   let served={}, printed={}, noshow={};
 
-  db.ref(`${ROOT}/served`).on("value",s=>{ served=s.val()||{}; paint(); });
-  db.ref(`${ROOT}/printed`).on("value",s=>{ printed=s.val()||{}; paint(); });
-  db.ref(`${ROOT}/noshow`).on("value",s=>{ noshow=s.val()||{}; paint(); });
+  db.ref(`${ROOT}/served`).on("value",s=>{served=s.val()||{}; paint();});
+  db.ref(`${ROOT}/printed`).on("value",s=>{printed=s.val()||{}; paint();});
+  db.ref(`${ROOT}/noshow`).on("value",s=>{noshow=s.val()||{}; paint();});
 
   let curStart=1, curEnd=100;
+  let suppressUntil = 0; // global debounce to ignore click immediately after dblclick/tap
 
   function showRange(a,b,btn){
-    curStart=a; curEnd=b; setActive(btn);
+    setActive(btn);
+    curStart=a; curEnd=b;
     gridEl.innerHTML="";
     for(let n=a;n<=b;n++){
       const d=document.createElement("div");
       d.className="cell"; d.textContent=n;
 
-      // single tap: serve
-      d.addEventListener("click",()=>serve(n));
-
-      // mobile-friendly double-tap to clear black
-      let last=0;
-      d.addEventListener("touchend",(e)=>{
-        const now=Date.now();
-        if(now-last<350){ clearIfBlack(n); }
-        last=now;
+      // CLICK: serve, but ignore if just double-clicked
+      d.addEventListener("click",(e)=>{
+        if(Date.now() < suppressUntil) return; // prevent serve after dbl
+        serve(n);
       });
-      // desktop double-click
-      d.addEventListener("dblclick",()=>clearIfBlack(n));
+
+      // DBLCLICK: clear all states & suppress following click
+      d.addEventListener("dblclick",(e)=>{
+        e.preventDefault(); e.stopPropagation();
+        suppressUntil = Date.now() + 400;
+        clearToWhite(n);
+      });
+
+      // MOBILE double-tap support
+      let lastTouch = 0;
+      d.addEventListener("touchend", (e)=>{
+        const now = Date.now();
+        if(now - lastTouch < 350){
+          suppressUntil = Date.now() + 400;
+          clearToWhite(n);
+        }
+        lastTouch = now;
+      });
 
       gridEl.appendChild(d);
     }
@@ -131,32 +142,33 @@
   }
 
   async function serve(n){
-    // write to DB
     await db.ref(`${ROOT}/served/${n}`).set(true);
     await db.ref(`${ROOT}/noshow/${n}`).remove();
-    // update local caches for instant UI
+    // local fast UI
     served[n]=true; delete noshow[n];
-    // publish latest + MRN if any
+    // update latest + MRN
     const mrnSnap=await db.ref(`${ROOT}/mrn/${n}`).get();
     const mrn=mrnSnap.exists()?mrnSnap.val():null;
     await db.ref(`${ROOT}/latest`).set({number:n, ts:Date.now(), mrn: mrn || null});
-    nowNum.textContent=n;
-    nowMrn.textContent=mrn?`MRN: ${mrn}`:"";
+    nowNum.textContent=n; nowMrn.textContent = mrn ? `MRN: ${mrn}` : "";
     paint();
-
-    // auto-switch range if we just served the last in this page
+    // auto switch if last in page
     if(n===curEnd && curEnd<1000){
-      const idx=Math.floor(curEnd/100); // 1-based pages
+      const idx=Math.floor(curEnd/100);
       showRange(curEnd+1, Math.min(curEnd+100,1000), buttons[idx]);
     }
   }
 
-  function clearIfBlack(n){
-    if(served[n]){
-      db.ref(`${ROOT}/served/${n}`).remove();
-      delete served[n];
-      paint();
-    }
+  async function clearToWhite(n){
+    // Remove all states so it stays WHITE (no green/gray/black)
+    await Promise.all([
+      db.ref(`${ROOT}/served/${n}`).remove(),
+      db.ref(`${ROOT}/noshow/${n}`).remove(),
+      db.ref(`${ROOT}/printed/${n}`).remove() // ensure no green residue
+    ]);
+    delete served[n]; delete noshow[n]; delete printed[n];
+    // if we cleared the current "now serving", do NOT change it automatically
+    paint();
   }
 
   // Buttons
@@ -168,7 +180,7 @@
 
   document.getElementById("btnNo").onclick=async ()=>{
     const n=+nowNum.textContent;
-    if(!n) return;
+    if(!n) return alert("Tap a number first, then press No Show.");
     await db.ref(`${ROOT}/noshow/${n}`).set(true);
     await db.ref(`${ROOT}/served/${n}`).remove();
     noshow[n]=true; delete served[n];
@@ -182,21 +194,20 @@
       db.ref(`${ROOT}/noshow`).remove(),
       db.ref(`${ROOT}/printed`).remove(),
       db.ref(`${ROOT}/latest`).remove(),
-      // optional counters used by some kiosk builds:
+      db.ref(`${ROOT}/counter`).remove(), // common kiosk counter
       db.ref(`${ROOT}/next`).remove(),
-      db.ref(`${ROOT}/counter`).remove(),
       db.ref(`${ROOT}/kiosk/next`).remove()
     ]);
-    served={}; printed={}; noshow={};
+    served={}; noshow={}; printed={};
     nowNum.textContent="-"; nowMrn.textContent="";
     paint();
   };
 
-  // reflect latest (served elsewhere)
+  // reflect latest updates (from any operator)
   db.ref(`${ROOT}/latest`).on("value",s=>{
     const v=s.val(); if(!v) return;
     nowNum.textContent=v.number ?? "-";
-    nowMrn.textContent=v.mrn ? `MRN: ${v.mrn}` : "";
+    nowMrn.textContent = v.mrn ? `MRN: ${v.mrn}` : "";
   });
 
   // init
