@@ -1,8 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Cardiac Tickets</title>
 <style>
   :root{
@@ -33,6 +33,7 @@
   .cell.printed{background:var(--printed);color:#fff;border-color:#0f7a34}
   .tip{max-width:980px;margin:0 auto 22px;padding:0 16px;color:#475569;text-align:center}
 </style>
+
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
 </head>
@@ -57,7 +58,7 @@
   <div id="grid" class="grid"></div>
 
   <p class="tip">
-    Tip: green = existing patient (printed), black = served patient, gray = no-show. Double-click (or double-tap) a black/gray cell to clear it back to white; Restart clears all.
+    Tip: green = existing patient (printed), black = served patient, gray = no-show. Double-click a black cell to clear it, or press Restart to clear all.
   </p>
 
 <script>
@@ -70,148 +71,116 @@
   const gridEl=document.getElementById("grid");
   const nowNum=document.getElementById("nowNum");
   const nowMrn=document.getElementById("nowMrn");
+
   const rangesEl=document.getElementById("ranges");
+  const ranges=[];
+  for(let s=1;s<=1000;s+=100){ ranges.push([s,s+99]); }
+  ranges.forEach(([a,b],i)=>{
+    const btn=document.createElement("button");
+    btn.textContent=`${a}–${b}`;
+    btn.onclick=()=>showRange(a,b,btn);
+    rangesEl.appendChild(btn);
+    if(i===0) btn.classList.add("active");
+  });
 
-  // ranges 1..1000
-  const buttons=[];
-  for(let s=1;s<=1000;s+=100){
-    const b=document.createElement("button");
-    b.textContent=`${s}–${s+99}`;
-    b.onclick=()=>showRange(s,s+99,b);
-    rangesEl.appendChild(b);
-    buttons.push(b);
-  }
-  buttons[0].classList.add("active");
-  const setActive=b=>buttons.forEach(x=>x.classList.toggle("active",x===b));
+  function clearActive(){[...rangesEl.children].forEach(b=>b.classList.remove("active"));}
 
-  // live caches
-  let served={}, printed={}, noshow={};
+  const served={}, printed={}, noShow={};
 
-  db.ref(`${ROOT}/served`).on("value",s=>{served=s.val()||{}; paint();});
-  db.ref(`${ROOT}/printed`).on("value",s=>{printed=s.val()||{}; paint();});
-  db.ref(`${ROOT}/noshow`).on("value",s=>{noshow=s.val()||{}; paint();});
+  db.ref(`${ROOT}/served`).on("value",s=>{Object.assign(served,s.val()||{});refreshGridClasses();});
+  db.ref(`${ROOT}/printed`).on("value",s=>{Object.assign(printed,s.val()||{});refreshGridClasses();});
+  db.ref(`${ROOT}/noshow`).on("value",s=>{Object.assign(noShow,s.val()||{});refreshGridClasses();});
 
   let curStart=1, curEnd=100;
-  let suppressUntil = 0; // global debounce to ignore click immediately after dblclick/tap
-
   function showRange(a,b,btn){
-    setActive(btn);
+    clearActive(); btn.classList.add("active");
     curStart=a; curEnd=b;
     gridEl.innerHTML="";
     for(let n=a;n<=b;n++){
       const d=document.createElement("div");
       d.className="cell"; d.textContent=n;
-
-      // CLICK: serve, but ignore if just double-clicked
-      d.addEventListener("click",(e)=>{
-        if(Date.now() < suppressUntil) return; // prevent serve after dbl
-        serve(n);
-      });
-
-      // DBLCLICK: clear all states & suppress following click
-      d.addEventListener("dblclick",(e)=>{
-        e.preventDefault(); e.stopPropagation();
-        suppressUntil = Date.now() + 400;
-        clearToWhite(n);
-      });
-
-      // MOBILE double-tap support
-      let lastTouch = 0;
-      d.addEventListener("touchend", (e)=>{
-        const now = Date.now();
-        if(now - lastTouch < 350){
-          suppressUntil = Date.now() + 400;
-          clearToWhite(n);
-        }
-        lastTouch = now;
-      });
-
+      d.onclick=()=>serve(n);
+      d.ondblclick=()=>{ if(served[n]) db.ref(`${ROOT}/served/${n}`).remove(); };
       gridEl.appendChild(d);
     }
-    paint();
+    refreshGridClasses();
   }
 
-  function paint(){
-    [...gridEl.children].forEach(c=>{
-      const n=+c.textContent;
-      c.classList.remove("on","no","printed");
-      if(served[n]) c.classList.add("on");
-      else if(noshow[n]) c.classList.add("no");
-      else if(printed[n]) c.classList.add("printed");
+  function refreshGridClasses(){
+    [...gridEl.children].forEach(cell=>{
+      const n=parseInt(cell.textContent,10);
+      cell.classList.remove("on","no","printed");
+      if(served[n]) cell.classList.add("on");
+      else if(noShow[n]) cell.classList.add("no");
+      else if(printed[n]) cell.classList.add("printed");
     });
+  }
+
+  async function countWaiting(){
+    const allPrinted=await db.ref(`${ROOT}/printed`).get();
+    const allServed=await db.ref(`${ROOT}/served`).get();
+    const allNoShow=await db.ref(`${ROOT}/noshow`).get();
+    const printed=allPrinted.val()||{};
+    const served=allServed.val()||{};
+    const noshow=allNoShow.val()||{};
+    return Object.keys(printed).filter(k=>!served[k]&&!noshow[k]).length;
   }
 
   async function serve(n){
     await db.ref(`${ROOT}/served/${n}`).set(true);
     await db.ref(`${ROOT}/noshow/${n}`).remove();
-    // local fast UI
-    served[n]=true; delete noshow[n];
-    // update latest + MRN
     const mrnSnap=await db.ref(`${ROOT}/mrn/${n}`).get();
-    const mrn=mrnSnap.exists()?mrnSnap.val():null;
-    await db.ref(`${ROOT}/latest`).set({number:n, ts:Date.now(), mrn: mrn || null});
-    nowNum.textContent=n; nowMrn.textContent = mrn ? `MRN: ${mrn}` : "";
-    paint();
-    // auto switch if last in page
+    const mrnVal=mrnSnap.exists()?mrnSnap.val():null;
+    const waiting=await countWaiting();
+    await db.ref(`${ROOT}/latest`).set({number:n,ts:Date.now(),mrn:mrnVal||null,waiting});
+    nowNum.textContent=n;
+    nowMrn.textContent=mrnVal?`MRN: ${mrnVal}`:"";
+    refreshGridClasses();
     if(n===curEnd && curEnd<1000){
-      const idx=Math.floor(curEnd/100);
-      showRange(curEnd+1, Math.min(curEnd+100,1000), buttons[idx]);
+      const nextStart=curEnd+1,nextEnd=Math.min(curEnd+100,1000);
+      const nextBtn=[...rangesEl.children][Math.floor((nextStart-1)/100)];
+      showRange(nextStart,nextEnd,nextBtn);
     }
   }
 
-  async function clearToWhite(n){
-    // Remove all states so it stays WHITE (no green/gray/black)
-    await Promise.all([
-      db.ref(`${ROOT}/served/${n}`).remove(),
-      db.ref(`${ROOT}/noshow/${n}`).remove(),
-      db.ref(`${ROOT}/printed/${n}`).remove() // ensure no green residue
-    ]);
-    delete served[n]; delete noshow[n]; delete printed[n];
-    // if we cleared the current "now serving", do NOT change it automatically
-    paint();
-  }
-
-  // Buttons
-  document.getElementById("btnNext").onclick=async ()=>{
+  document.getElementById("btnNext").onclick=async()=>{
     for(let n=curStart;n<=curEnd;n++){
-      if(!served[n] && !noshow[n]){ await serve(n); return; }
+      if(!served[n]&&!noShow[n]){await serve(n);return;}
     }
   };
 
-  document.getElementById("btnNo").onclick=async ()=>{
-    const n=+nowNum.textContent;
-    if(!n) return alert("Tap a number first, then press No Show.");
+  document.getElementById("btnNo").onclick=async()=>{
+    const n=parseInt(nowNum.textContent,10);
+    if(!n)return;
     await db.ref(`${ROOT}/noshow/${n}`).set(true);
     await db.ref(`${ROOT}/served/${n}`).remove();
-    noshow[n]=true; delete served[n];
-    paint();
+    refreshGridClasses();
   };
 
-  document.getElementById("btnReset").onclick=async ()=>{
-    if(!confirm("Are you sure you want to clear all numbers and restart?")) return;
+  document.getElementById("btnReset").onclick=async()=>{
+    if(!confirm("هل أنت متأكد من إعادة ضبط النظام بالكامل؟ سيتم مسح جميع البيانات."))return;
     await Promise.all([
       db.ref(`${ROOT}/served`).remove(),
       db.ref(`${ROOT}/noshow`).remove(),
       db.ref(`${ROOT}/printed`).remove(),
+      db.ref(`${ROOT}/mrn`).remove(),
       db.ref(`${ROOT}/latest`).remove(),
-      db.ref(`${ROOT}/counter`).remove(), // common kiosk counter
-      db.ref(`${ROOT}/next`).remove(),
-      db.ref(`${ROOT}/kiosk/next`).remove()
+      db.ref(`${ROOT}/latestPrinted`).remove(),
+      db.ref(`${ROOT}/next`).set(1)
     ]);
-    served={}; noshow={}; printed={};
-    nowNum.textContent="-"; nowMrn.textContent="";
-    paint();
+    nowNum.textContent="-";nowMrn.textContent="";
+    refreshGridClasses();
+    const firstBtn=document.querySelector(".ranges button");
+    if(firstBtn)showRange(1,100,firstBtn);
   };
 
-  // reflect latest updates (from any operator)
   db.ref(`${ROOT}/latest`).on("value",s=>{
-    const v=s.val(); if(!v) return;
-    nowNum.textContent=v.number ?? "-";
-    nowMrn.textContent = v.mrn ? `MRN: ${v.mrn}` : "";
+    const v=s.val();if(!v)return;
+    nowNum.textContent=v.number||"-";
+    nowMrn.textContent=v.mrn?`MRN: ${v.mrn}`:"";
   });
 
-  // init
-  showRange(1,100,buttons[0]);
+  showRange(1,100,rangesEl.firstElementChild);
 })();
 </script>
 </body>
