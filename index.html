@@ -170,12 +170,34 @@
     refreshGridClasses();
   };
 
-  document.getElementById("btnReset").onclick = ()=>{
-    if(!confirm("سيتم مسح النداءات و الـ No-Show فقط. متابعة؟")) return;
-    db.ref(`${ROOT}/served`).remove();
-    db.ref(`${ROOT}/noshow`).remove();
-    db.ref(`${ROOT}/latest`).remove();
-    nowNum.textContent="-"; nowMrn.textContent="";
+  /* ===== Restart: يمسح كل شيء ويبلغ الكيوسك ===== */
+  document.getElementById("btnReset").onclick = async () => {
+    if (!confirm("سيتم مسح جميع البيانات (مطبوع/مخدّم/لم يحضر) وإعادة البدء. متابعة؟")) return;
+
+    // 1) امسح الحالة بالكامل
+    await Promise.all([
+      db.ref(`${ROOT}/served`).remove(),
+      db.ref(`${ROOT}/noshow`).remove(),
+      db.ref(`${ROOT}/printed`).remove(),
+      db.ref(`${ROOT}/mrn`).remove(),
+      db.ref(`${ROOT}/latest`).remove(),
+      db.ref(`${ROOT}/latestPrinted`).remove(),
+      db.ref(`${ROOT}/next`).set(null)   // الكيوسك سيعيد حساب "التالي" (يبدأ من 1)
+    ]);
+
+    // 2) نبضة للكيوسك ليتصفّر (input/preview)
+    const flagRef = db.ref(`${ROOT}/resetFlag`);
+    await flagRef.set(Date.now());
+    setTimeout(()=>flagRef.set(null), 1500);
+
+    // 3) نظافة واجهة الأوبريتور محليًا
+    nowNum.textContent="-"; 
+    nowMrn.textContent="";
+    refreshGridClasses();
+
+    // ارجعي لأول مدى 1–100
+    const firstBtn = document.querySelector(".ranges button");
+    if (firstBtn) showRange(1, 100, firstBtn);
   };
 
   // عكس آخر نداء على اللوحة
