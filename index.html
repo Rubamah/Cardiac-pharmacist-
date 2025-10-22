@@ -213,18 +213,18 @@
 </script>
 <script>
 (function(){
-  const pass = "kpcreg"; // ← كلمة السر
-  let entered = localStorage.getItem("authOK");
+  const pass = "kpcreg"; // كلمة السر
+  // استخدمي sessionStorage بدل localStorage
+  let entered = sessionStorage.getItem("authOK");
 
   if(!entered){
-    let userPass = prompt("Please enter password:");
+    const userPass = prompt("Please enter password:");
     if(userPass !== pass){
       alert("Incorrect password. Access denied.");
       document.body.innerHTML = "<h2 style='text-align:center;margin-top:40vh;font-family:sans-serif;'>Access Denied</h2>";
       throw new Error("Access blocked");
-    } else {
-      localStorage.setItem("authOK", "true");
     }
+    sessionStorage.setItem("authOK","true");
   }
 })();
 </script>
