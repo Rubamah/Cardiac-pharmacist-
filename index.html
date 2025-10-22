@@ -132,11 +132,12 @@
     await db.ref(`${ROOT}/served/${n}`).set(true);
     await db.ref(`${ROOT}/noshow/${n}`).remove();
     const mrnVal = await getMrn(n);
+    // داخل serve(n) بعد حساب mrnVal
     await db.ref(`${ROOT}/latest`).set({
   number: n,
   ts: Date.now(),
   mrn: mrnVal || null,
-  window: sessionStorage.getItem("windowNum") || null   // رقم الشباك من السشن
+  window: sessionStorage.getItem("windowNum") || null  // ← رقم الشباك للمنادي
 });
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
