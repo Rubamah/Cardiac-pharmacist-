@@ -133,7 +133,6 @@
     await db.ref(`${ROOT}/noshow/${n}`).remove();
     const mrnVal = await getMrn(n);
     await db.ref(`${ROOT}/latest`).set({number:n, ts:Date.now(), mrn: mrnVal || null});
-    speakCall(n);
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
     refreshGridClasses();
@@ -228,15 +227,6 @@
     sessionStorage.setItem("authOK","true");
   }
 })();
-  function speakCall(num){
-  const msg = new SpeechSynthesisUtterance(`تذكرة رقم ${num}`);
-  msg.lang = "ar-SA";   // صوت عربي واضح
-  msg.rate = 1;         // سرعة طبيعية
-  msg.volume = 1;       // صوت عالي
-  msg.pitch = 1;        // طبقة صوت عادية
-  window.speechSynthesis.cancel(); // يوقف أي صوت سابق
-  window.speechSynthesis.speak(msg);
-}
 </script>
 </body>
 </html>
