@@ -137,7 +137,7 @@
   number: n,
   ts: Date.now(),
   mrn: mrnVal || null,
-  window: sessionStorage.getItem("windowNum") || null  // ← رقم الشباك للمنادي
+  window: sessionStorage.getItem("counterNum") || null  // ← تصحيح المفتاح هنا
 });
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
