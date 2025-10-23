@@ -137,9 +137,8 @@
   number: n,
   ts: Date.now(),
   mrn: mrnVal || null,
-  const myWindow = sessionStorage.getItem("windowNum")
-              || sessionStorage.getItem("counterNum")
-              || null;
+  window: sessionStorage.getItem("windowNum") || null  // ← رقم الشباك للمنادي
+});
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
     refreshGridClasses();
@@ -226,8 +225,7 @@
   // تحقق من الجلسة (sessionStorage فقط)
   let entered = sessionStorage.getItem("authOK");
   let counter = sessionStorage.getItem("counterNum");
-sessionStorage.setItem("counterNum", cn);
-sessionStorage.setItem("windowNum",  cn);   // ← سطر جديد مهم
+
   if (!entered || !counter) {
     // إنشاء overlay بسيط
     const overlay = document.createElement("div");
