@@ -184,7 +184,6 @@
     showRange(nextStart,nextEnd,nextBtn);
   }
 }
-  }
 
   // اختيار أصغر رقم متاح (يفضّل المطبوعة أولاً)
   function pickNextInRange(){
@@ -291,11 +290,15 @@
       const cn = document.getElementById("cn").value.trim();
       if(pw !== pass){ alert("Incorrect password."); return; }
       if(!cn){ alert("Please enter counter number."); return; }
+
+      // خزّني المفتاحين بنفس القيمة
       sessionStorage.setItem("authOK","true");
       sessionStorage.setItem("counterNum", cn);
+      sessionStorage.setItem("windowNum", cn);   // ← هذا هو المهم لأن serve(n) تقرأ windowNum
+
       overlay.remove();
 
-      // نحفظ رقم الشباك في Firebase ليقرأه announcer
+      // احفظ رقم الشباك في Firebase ليقرأه announcer (اختياري)
       const db = firebase.database();
       const ROOT = "cardiac_demo";
       db.ref(`${ROOT}/operatorWindow`).set(Number(cn));
