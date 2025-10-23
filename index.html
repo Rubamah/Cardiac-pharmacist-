@@ -137,8 +137,9 @@
   number: n,
   ts: Date.now(),
   mrn: mrnVal || null,
-  window: sessionStorage.getItem("windowNum") || null  // ← رقم الشباك للمنادي
-});
+  const myWindow = sessionStorage.getItem("windowNum")
+              || sessionStorage.getItem("counterNum")
+              || null;
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
     refreshGridClasses();
