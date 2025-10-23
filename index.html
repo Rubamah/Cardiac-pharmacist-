@@ -219,51 +219,18 @@
 </script>
 <script>
 (function(){
-  // كلمة السر
-  const pass = "kpcreg";
-
-  // تحقق من الجلسة (sessionStorage فقط)
+  const pass = "kpcreg"; // كلمة السر
+  // استخدمي sessionStorage بدل localStorage
   let entered = sessionStorage.getItem("authOK");
-  let counter = sessionStorage.getItem("counterNum");
 
-  if (!entered || !counter) {
-    // إنشاء overlay بسيط
-    const overlay = document.createElement("div");
-    overlay.style.position = "fixed";
-    overlay.style.top = 0;
-    overlay.style.left = 0;
-    overlay.style.width = "100vw";
-    overlay.style.height = "100vh";
-    overlay.style.background = "rgba(0,0,0,0.85)";
-    overlay.style.display = "flex";
-    overlay.style.flexDirection = "column";
-    overlay.style.justifyContent = "center";
-    overlay.style.alignItems = "center";
-    overlay.style.zIndex = 9999;
-    overlay.style.color = "#fff";
-    overlay.style.fontFamily = "Segoe UI, sans-serif";
-    overlay.innerHTML = `
-      <h2 style="margin-bottom:20px;font-size:28px;">Access Required</h2>
-      <input id="pw" type="password" placeholder="Enter password" style="padding:12px 18px;font-size:18px;border-radius:8px;border:none;width:240px;text-align:center;margin-bottom:14px;" />
-      <input id="cn" type="number" placeholder="Counter number" style="padding:12px 18px;font-size:18px;border-radius:8px;border:none;width:240px;text-align:center;margin-bottom:14px;" />
-      <button id="go" style="padding:12px 20px;font-size:18px;border:none;border-radius:8px;background:#2563eb;color:#fff;cursor:pointer;">Continue</button>
-    `;
-    document.body.appendChild(overlay);
-
-    document.getElementById("go").onclick = ()=>{
-      const pw = document.getElementById("pw").value.trim();
-      const cn = document.getElementById("cn").value.trim();
-      if(pw !== pass){ alert("Incorrect password."); return; }
-      if(!cn){ alert("Please enter counter number."); return; }
-      sessionStorage.setItem("authOK","true");
-      sessionStorage.setItem("counterNum", cn);
-      overlay.remove();
-
-      // نحفظ رقم الشباك في Firebase ليقرأه announcer
-      const db = firebase.database();
-      const ROOT = "cardiac_demo";
-      db.ref(`${ROOT}/operatorWindow`).set(Number(cn));
-    };
+  if(!entered){
+    const userPass = prompt("Please enter password:");
+    if(userPass !== pass){
+      alert("Incorrect password. Access denied.");
+      document.body.innerHTML = "<h2 style='text-align:center;margin-top:40vh;font-family:sans-serif;'>Access Denied</h2>";
+      throw new Error("Access blocked");
+    }
+    sessionStorage.setItem("authOK","true");
   }
 })();
 </script>
