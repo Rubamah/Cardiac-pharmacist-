@@ -226,7 +226,8 @@
   // تحقق من الجلسة (sessionStorage فقط)
   let entered = sessionStorage.getItem("authOK");
   let counter = sessionStorage.getItem("counterNum");
-
+sessionStorage.setItem("counterNum", cn);
+sessionStorage.setItem("windowNum",  cn);   // ← سطر جديد مهم
   if (!entered || !counter) {
     // إنشاء overlay بسيط
     const overlay = document.createElement("div");
