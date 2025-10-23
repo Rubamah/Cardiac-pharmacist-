@@ -129,13 +129,7 @@
 
   // خدمة رقم
   async function serve(n){
-   // كان: await db.ref(`${ROOT}/served/${n}`).set(true);
-// صار:
-  const tx = await db.ref(`${ROOT}/served/${n}`).transaction(v => v ? v : true);
-if (!tx.committed) {
-  // رقم سبق خدمته في نفس اللحظة من شخص آخر → لا نكرر إعلان
-  return;
-}
+    await db.ref(`${ROOT}/served/${n}`).set(true);
     await db.ref(`${ROOT}/noshow/${n}`).remove();
     const mrnVal = await getMrn(n);
     // داخل serve(n) بعد حساب mrnVal
@@ -144,14 +138,6 @@ if (!tx.committed) {
   ts: Date.now(),
   mrn: mrnVal || null,
   window: sessionStorage.getItem("counterNum") || null  // ← تصحيح المفتاح هنا
-});
-    const jobRef = db.ref(`${ROOT}/announceQueue`).push();
-await jobRef.set({
-  number: n,
-  window: sessionStorage.getItem("counterNum") || null,
-  ts: firebase.database.ServerValue.TIMESTAMP, // توقيت السيرفر
-  status: "pending",         // حالة المهمة
-  repeats: 2                 // عدد مرات التكرار
 });
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
