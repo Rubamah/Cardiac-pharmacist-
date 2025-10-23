@@ -129,61 +129,40 @@
 
   // خدمة رقم
   async function serve(n){
-  // علّمي Served وامسحي no-show
-  await db.ref(`${ROOT}/served/${n}`).set(true);
-  await db.ref(`${ROOT}/noshow/${n}`).remove();
-
-  const mrnVal   = await getMrn(n);
-  const myWindow = sessionStorage.getItem("windowNum") || null;
-
-  // (أ) ثبّت "تعيين الشباك" لأول ضغطة فقط
-  const assignRef = db.ref(`${ROOT}/assignment/${n}`);
-  const assignTx  = await assignRef.transaction(cur => {
-    // لو سبق وتعيّن شباك لهذا الرقم: لا نغيّره
-    if (cur && cur.window != null) return cur;
-    return {
-      window: myWindow ? Number(myWindow) : null,
-      by: myWindow || null,
-      ts: firebase.database.ServerValue.TIMESTAMP
-    };
-  });
-  // الشباك الفعّال الذي سيتبع الرقم (الأول فقط)
-  const effectiveWindow = assignTx.snapshot.val()
-    ? assignTx.snapshot.val().window
-    : (myWindow ? Number(myWindow) : null);
-
-  // (ب) امنع ازدواج إضافة نفس الرقم في الطابور
-  const calledRef = db.ref(`${ROOT}/called/${n}`);
-  const calledTx  = await calledRef.transaction(cur => {
-    if (cur && cur.status === 'queued') return cur;     // موجود بالطابور
-    return { status:'queued', ts: firebase.database.ServerValue.TIMESTAMP };
-  });
-
-  if (calledTx.committed) {
-    // (ج) ادفع للـ FIFO queue
-    await db.ref(`${ROOT}/calls`).push({
-      number: n,
-      window: effectiveWindow,
-      mrn: mrnVal || null,
-      ts: firebase.database.ServerValue.TIMESTAMP
-    });
-  }
-
-  // (اختياري) تحديث لوحة الأوبراتور فقط
-  await db.ref(`${ROOT}/latest`).set({
-    number:n, mrn:mrnVal || null, window:effectiveWindow, ts: Date.now()
-  });
-
-  nowNum.textContent = n;
-  nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
-  refreshGridClasses();
-
-  if(n===curEnd && curEnd<1000){
-    const nextStart=curEnd+1, nextEnd=Math.min(curEnd+100,1000);
-    const nextBtn = [...rangesEl.children][Math.floor((nextStart-1)/100)];
-    showRange(nextStart,nextEnd,nextBtn);
-  }
+   // كان: await db.ref(`${ROOT}/served/${n}`).set(true);
+// صار:
+  const tx = await db.ref(`${ROOT}/served/${n}`).transaction(v => v ? v : true);
+if (!tx.committed) {
+  // رقم سبق خدمته في نفس اللحظة من شخص آخر → لا نكرر إعلان
+  return;
 }
+    await db.ref(`${ROOT}/noshow/${n}`).remove();
+    const mrnVal = await getMrn(n);
+    // داخل serve(n) بعد حساب mrnVal
+    await db.ref(`${ROOT}/latest`).set({
+  number: n,
+  ts: Date.now(),
+  mrn: mrnVal || null,
+  window: sessionStorage.getItem("counterNum") || null  // ← تصحيح المفتاح هنا
+});
+    const jobRef = db.ref(`${ROOT}/announceQueue`).push();
+await jobRef.set({
+  number: n,
+  window: sessionStorage.getItem("counterNum") || null,
+  ts: firebase.database.ServerValue.TIMESTAMP, // توقيت السيرفر
+  status: "pending",         // حالة المهمة
+  repeats: 2                 // عدد مرات التكرار
+});
+    nowNum.textContent = n;
+    nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
+    refreshGridClasses();
+    // لو وصلنا آخر النطاق انتقل تلقائيًا
+    if(n===curEnd && curEnd<1000){
+      const nextStart=curEnd+1, nextEnd=Math.min(curEnd+100,1000);
+      const nextBtn = [...rangesEl.children][Math.floor((nextStart-1)/100)];
+      showRange(nextStart,nextEnd,nextBtn);
+    }
+  }
 
   // اختيار أصغر رقم متاح (يفضّل المطبوعة أولاً)
   function pickNextInRange(){
@@ -290,15 +269,11 @@
       const cn = document.getElementById("cn").value.trim();
       if(pw !== pass){ alert("Incorrect password."); return; }
       if(!cn){ alert("Please enter counter number."); return; }
-
-      // خزّني المفتاحين بنفس القيمة
       sessionStorage.setItem("authOK","true");
       sessionStorage.setItem("counterNum", cn);
-      sessionStorage.setItem("windowNum", cn);   // ← هذا هو المهم لأن serve(n) تقرأ windowNum
-
       overlay.remove();
 
-      // احفظ رقم الشباك في Firebase ليقرأه announcer (اختياري)
+      // نحفظ رقم الشباك في Firebase ليقرأه announcer
       const db = firebase.database();
       const ROOT = "cardiac_demo";
       db.ref(`${ROOT}/operatorWindow`).set(Number(cn));
