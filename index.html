@@ -131,6 +131,9 @@
   // خدمة رقم
   async function serve(n){
     await db.ref(`${ROOT}/noshow/${n}`).remove();
+    if (!served[n]) {
+  await db.ref(`${ROOT}/served/${n}`).set(true);
+}
     const mrnVal = await getMrn(n);
     // داخل serve(n) بعد حساب mrnVal
     await db.ref(`${ROOT}/latest`).set({
