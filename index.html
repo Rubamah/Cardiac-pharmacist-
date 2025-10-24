@@ -130,7 +130,11 @@
 
   // خدمة رقم
   async function serve(n){
-    await db.ref(`${ROOT}/noshow/${n}`).remove();
+if (noshow[n]) {
+  alert("❌ لا يمكن نداء تذكرة تم تسجيلها كـ No Show");
+  return;
+}
+
     if (!served[n]) {
   await db.ref(`${ROOT}/served/${n}`).set(true);
 }
@@ -173,11 +177,11 @@ await db.ref(`${ROOT}/calls/${n}`).set({
   // اختيار أصغر رقم متاح (يفضّل المطبوعة أولاً)
 async function claimNextTicket(start, end) {
   // نقرأ حالة no-show مرة واحدة قبل البدء
-  const noshowSnapshot = await db.ref(`${ROOT}/noshow`).get();
-  const noshowMap = noshowSnapshot.exists() ? noshowSnapshot.val() : {};
+
 
   for (let n = start; n <= end; n++) {
-    if (noshowMap[n]) continue; // تخطي التذكرة اللي عليها no-show
+    if (noshow[n]) continue;
+ // تخطي التذكرة اللي عليها no-show
 
     const ref = db.ref(`${ROOT}/served/${n}`);
     const result = await ref.transaction(current => {
