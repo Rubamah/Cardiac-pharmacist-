@@ -143,12 +143,14 @@ window: sessionStorage.getItem("counterNum") || null
 
 try {
   const effectiveWindow = sessionStorage.getItem("counterNum") || null;
-  await db.ref(`${ROOT}/calls`).push({
-    number: n,
-    window: effectiveWindow,
-    mrn: mrnVal || null,
-    ts: firebase.database.ServerValue.TIMESTAMP
-  });
+await db.ref(`${ROOT}/calls`).push({
+  number: n,
+  window: effectiveWindow,
+  windowNum: effectiveWindow, // ← أضف هذا السطر
+  mrn: mrnVal || null,
+  ts: firebase.database.ServerValue.TIMESTAMP
+});
+
 } catch(err) {
   console.error("Call push error:", err);
 }
