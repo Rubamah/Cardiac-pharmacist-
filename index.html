@@ -45,6 +45,7 @@
         <button class="btn noshow" id="btnNo">No Show</button>
         <button class="btn reset"  id="btnReset">Restart</button>
       </div>
+      <div id="confirmationMsg" style="margin-top:12px;font-weight:800;color:#16a34a;font-size:18px;"></div>
     </div>
   </div>
 
@@ -192,8 +193,14 @@ async function claimNextTicket(start, end) {
   if(n!=null) {
     await serve(n);
     await db.ref(`${ROOT}/nextClaim`).remove(); // تنظيف القفل بعد الاستخدام
+
+    // عرض رسالة تأكيد
+    const msgEl = document.getElementById("confirmationMsg");
+    msgEl.textContent = `✅ تم مناداة التذكرة رقم ${n}`;
+    setTimeout(() => msgEl.textContent = "", 4000); // تختفي بعد ٤ ثواني
   }
 };
+
 
 
   document.getElementById("btnNo").onclick = async ()=>{
