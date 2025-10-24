@@ -168,29 +168,21 @@ await db.ref(`${ROOT}/calls`).push({
 
   // اختيار أصغر رقم متاح (يفضّل المطبوعة أولاً)
 async function claimNextTicket(start, end) {
-  const ref = db.ref(`${ROOT}/nextClaim`);
-  let claimed = null;
-
- await ref.transaction(current => {
-  if (current != null) return; // someone already claimed
   for (let n = start; n <= end; n++) {
-    if (!served[n] && !noshow[n]) {
-      claimed = n;
-      return n; // claim this ticket
+    const ref = db.ref(`${ROOT}/served/${n}`);
+    const result = await ref.transaction(current => {
+      if (current === true) return; // already taken
+      return true; // claim it
+    });
+
+    if (result.committed) {
+      await db.ref(`${ROOT}/noshow/${n}`).remove();
+      return n; // this ticket is now yours
     }
   }
-  return;
-});
-
-
-  if (!claimed) return null;
-
-  // ✅ سجل التذكرة في served مباشرة هنا
-  await db.ref(`${ROOT}/served/${claimed}`).set(true);
-  await db.ref(`${ROOT}/noshow/${claimed}`).remove();
-
-  return claimed;
+  return null; // no available ticket
 }
+
 
 
 
