@@ -137,11 +137,12 @@
   number: n,
   ts: Date.now(),
   mrn: mrnVal || null,
-  window: sessionStorage.getItem("windowNum") || null  // ← رقم الشباك للمنادي
+window: sessionStorage.getItem("counterNum") || null
+// ← رقم الشباك للمنادي
 });
-    // --- أضف هذا الجزء لتغذية الـ announcer queue ---
+
 try {
-  const effectiveWindow = sessionStorage.getItem("windowNum") || null;
+  const effectiveWindow = sessionStorage.getItem("counterNum") || null;
   await db.ref(`${ROOT}/calls`).push({
     number: n,
     window: effectiveWindow,
@@ -151,6 +152,7 @@ try {
 } catch(err) {
   console.error("Call push error:", err);
 }
+
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
     refreshGridClasses();
