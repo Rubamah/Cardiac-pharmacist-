@@ -172,7 +172,13 @@ await db.ref(`${ROOT}/calls/${n}`).set({
 
   // اختيار أصغر رقم متاح (يفضّل المطبوعة أولاً)
 async function claimNextTicket(start, end) {
+  // نقرأ حالة no-show مرة واحدة قبل البدء
+  const noshowSnapshot = await db.ref(`${ROOT}/noshow`).get();
+  const noshowMap = noshowSnapshot.exists() ? noshowSnapshot.val() : {};
+
   for (let n = start; n <= end; n++) {
+    if (noshowMap[n]) continue; // تخطي التذكرة اللي عليها no-show
+
     const ref = db.ref(`${ROOT}/served/${n}`);
     const result = await ref.transaction(current => {
       if (current === true) return; // already taken
@@ -180,11 +186,12 @@ async function claimNextTicket(start, end) {
     });
 
     if (result.committed) {
-      await db.ref(`${ROOT}/noshow/${n}`).remove();
+      await db.ref(`${ROOT}/noshow/${n}`).remove(); // تنظيف احتياطي
       return n; // this ticket is now yours
     }
   }
-  return null; // no available ticket
+
+  return null; // لا يوجد تذكرة متاحة
 }
 
 
