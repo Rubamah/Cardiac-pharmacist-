@@ -130,7 +130,6 @@
 
   // خدمة رقم
   async function serve(n){
-    await db.ref(`${ROOT}/served/${n}`).set(true);
     await db.ref(`${ROOT}/noshow/${n}`).remove();
     const mrnVal = await getMrn(n);
     // داخل serve(n) بعد حساب mrnVal
@@ -173,7 +172,7 @@ async function claimNextTicket(start, end) {
   let claimed = null;
 
   await ref.transaction(current => {
-    if (current != null) return; // already claimed
+    if (current != null) return; // someone already claimed
     for (let n = start; n <= end; n++) {
       if (!served[n] && !noshow[n]) {
         claimed = n;
@@ -183,8 +182,15 @@ async function claimNextTicket(start, end) {
     return; // nothing to claim
   });
 
+  if (!claimed) return null;
+
+  // ✅ سجل التذكرة في served مباشرة هنا
+  await db.ref(`${ROOT}/served/${claimed}`).set(true);
+  await db.ref(`${ROOT}/noshow/${claimed}`).remove();
+
   return claimed;
 }
+
 
 
   // أزرار
