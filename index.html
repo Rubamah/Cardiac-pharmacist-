@@ -192,7 +192,6 @@ async function claimNextTicket(start, end) {
   const n = await claimNextTicket(curStart, curEnd);
 if(n!=null) {
   await serve(n);
-  await db.ref(`${ROOT}/nextClaim`).remove();
 } else {
   // عرض رسالة فقط إذا لم يحصل على رقم
   const msgEl = document.getElementById("confirmationMsg");
