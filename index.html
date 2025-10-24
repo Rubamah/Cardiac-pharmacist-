@@ -167,21 +167,34 @@ await db.ref(`${ROOT}/calls`).push({
   }
 
   // اختيار أصغر رقم متاح (يفضّل المطبوعة أولاً)
-  function pickNextInRange(){
-    for(let n=curStart;n<=curEnd;n++){
-      if(printed[n] && !served[n] && !noshow[n]) return n;
+async function claimNextTicket(start, end) {
+  const ref = db.ref(`${ROOT}/nextClaim`);
+  let claimed = null;
+
+  await ref.transaction(current => {
+    if (current != null) return; // already claimed
+    for (let n = start; n <= end; n++) {
+      if (!served[n] && !noshow[n]) {
+        claimed = n;
+        return n; // claim this ticket
+      }
     }
-    for(let n=curStart;n<=curEnd;n++){
-      if(!served[n] && !noshow[n]) return n;
-    }
-    return null;
-  }
+    return; // nothing to claim
+  });
+
+  return claimed;
+}
+
 
   // أزرار
   document.getElementById("btnNext").onclick = async ()=>{
-    const n = pickNextInRange();
-    if(n!=null) await serve(n);
-  };
+  const n = await claimNextTicket(curStart, curEnd);
+  if(n!=null) {
+    await serve(n);
+    await db.ref(`${ROOT}/nextClaim`).remove(); // تنظيف القفل بعد الاستخدام
+  }
+};
+
 
   document.getElementById("btnNo").onclick = async ()=>{
     const n = parseInt(nowNum.textContent,10);
