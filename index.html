@@ -227,34 +227,31 @@ if(n!=null) {
   };
 
   /* ===== Restart: يمسح كل شيء ويبلغ الكيوسك ===== */
-  document.getElementById("btnReset").onclick = async () => {
-    if (!confirm("سيتم مسح جميع البيانات (مطبوع/مخدّم/لم يحضر) وإعادة البدء. متابعة؟")) return;
+  /* ===== Soft Restart: لا يحذف أي بيانات ===== */
+document.getElementById("btnReset").onclick = async () => {
+  if (!confirm("سيتم عمل Restart للواجهة فقط دون حذف البيانات. متابعة؟")) return;
 
-    // 1) امسح الحالة بالكامل
-    await Promise.all([
-      db.ref(`${ROOT}/served`).remove(),
-      db.ref(`${ROOT}/noshow`).remove(),
-      db.ref(`${ROOT}/printed`).remove(),
-      db.ref(`${ROOT}/mrn`).remove(),
-      db.ref(`${ROOT}/latest`).remove(),
-      db.ref(`${ROOT}/latestPrinted`).remove(),
-      db.ref(`${ROOT}/next`).set(null)   // الكيوسك سيعيد حساب "التالي" (يبدأ من 1)
-    ]);
+  // 1) نبضة للكيوسك لتصفير حقل MRN والمعاينة فقط
+  const flagRef = db.ref(`${ROOT}/resetFlag`);
+  await flagRef.set(Date.now());
+  setTimeout(() => flagRef.set(null), 1500);
 
-    // 2) نبضة للكيوسك ليتصفّر (input/preview)
-    const flagRef = db.ref(`${ROOT}/resetFlag`);
-    await flagRef.set(Date.now());
-    setTimeout(()=>flagRef.set(null), 1500);
+  // 2) (اختياري) تفريغ آخر نداء على الشاشة فقط
+  try {
+    await db.ref(`${ROOT}/activeCall`).set(null);
+  } catch (e) {
+    console.warn("Reset flag set but no activeCall node");
+  }
 
-    // 3) نظافة واجهة الأوبريتور محليًا
-    nowNum.textContent="-"; 
-    nowMrn.textContent="";
-    refreshGridClasses();
+  // 3) تنظيف واجهة الأوبراتور محليًا فقط (ما يمسح شيء من الداتابيس)
+  nowNum.textContent = "-";
+  nowMrn.textContent = "";
+  refreshGridClasses();
 
-    // ارجعي لأول مدى 1–100
-    const firstBtn = document.querySelector(".ranges button");
-    if (firstBtn) showRange(1, 100, firstBtn);
-  };
+  // 4) ارجعي لأول نطاق 1–100 في العرض
+  const firstBtn = document.querySelector(".ranges button");
+  if (firstBtn) showRange(1, 100, firstBtn);
+};
 
   // عكس آخر نداء على اللوحة
   db.ref(`${ROOT}/latest`).on("value",s=>{
