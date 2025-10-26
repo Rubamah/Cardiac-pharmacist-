@@ -227,32 +227,38 @@ if(n!=null) {
   };
 
   /* ===== Restart: يمسح كل شيء ويبلغ الكيوسك ===== */
-  /* ===== Soft Restart: لا يحذف أي بيانات ===== */
+/* ===== Smart Soft Restart =====
+   Clears visuals, resets kiosk to start from 1,
+   keeps all data safe for reporting.
+*/
 document.getElementById("btnReset").onclick = async () => {
-  if (!confirm("سيتم عمل Restart للواجهة فقط دون حذف البيانات. متابعة؟")) return;
+  if (!confirm("Restart interface & kiosk (no data deletion)?")) return;
 
-  // 1) نبضة للكيوسك لتصفير حقل MRN والمعاينة فقط
+  // 1) Signal kiosk to clear its MRN and preview
   const flagRef = db.ref(`${ROOT}/resetFlag`);
   await flagRef.set(Date.now());
   setTimeout(() => flagRef.set(null), 1500);
 
-  // 2) (اختياري) تفريغ آخر نداء على الشاشة فقط
-  try {
-    await db.ref(`${ROOT}/activeCall`).set(null);
-  } catch (e) {
-    console.warn("Reset flag set but no activeCall node");
-  }
+  // 2) Reset kiosk counter to start fresh from 1
+  await db.ref(`${ROOT}/latestPrinted`).set({ number: 0 });
 
-  // 3) تنظيف واجهة الأوبراتور محليًا فقط (ما يمسح شيء من الداتابيس)
+  // 3) Clear local memory and visuals
+  served = {};
+  noshow = {};
+  printed = {};
   nowNum.textContent = "-";
   nowMrn.textContent = "";
-  refreshGridClasses();
+  [...gridEl.children].forEach(c => c.classList.remove("on", "no", "printed"));
 
-  // 4) ارجعي لأول نطاق 1–100 في العرض
+  // 4) Reload first range
   const firstBtn = document.querySelector(".ranges button");
   if (firstBtn) showRange(1, 100, firstBtn);
-};
 
+  // 5) Visual confirmation
+  const msg = document.getElementById("confirmationMsg");
+  msg.textContent = "✅ Restart done — kiosk starts from 1";
+  setTimeout(() => (msg.textContent = ""), 3000);
+};
   // عكس آخر نداء على اللوحة
   db.ref(`${ROOT}/latest`).on("value",s=>{
     const v=s.val(); if(!v) return;
