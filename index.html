@@ -227,38 +227,35 @@ if(n!=null) {
   };
 
   /* ===== Restart: يمسح كل شيء ويبلغ الكيوسك ===== */
-/* ===== Smart Soft Restart =====
-   Clears visuals, resets kiosk to start from 1,
-   keeps all data safe for reporting.
-*/
-document.getElementById("btnReset").onclick = async () => {
-  if (!confirm("Restart interface & kiosk (no data deletion)?")) return;
+  document.getElementById("btnReset").onclick = async () => {
+    if (!confirm("سيتم مسح جميع البيانات (مطبوع/مخدّم/لم يحضر) وإعادة البدء. متابعة؟")) return;
 
-  // 1) Signal kiosk to clear its MRN and preview
-  const flagRef = db.ref(`${ROOT}/resetFlag`);
-  await flagRef.set(Date.now());
-  setTimeout(() => flagRef.set(null), 1500);
+    // 1) امسح الحالة بالكامل
+    await Promise.all([
+      db.ref(`${ROOT}/served`).remove(),
+      db.ref(`${ROOT}/noshow`).remove(),
+      db.ref(`${ROOT}/printed`).remove(),
+      db.ref(`${ROOT}/mrn`).remove(),
+      db.ref(`${ROOT}/latest`).remove(),
+      db.ref(`${ROOT}/latestPrinted`).remove(),
+      db.ref(`${ROOT}/next`).set(null)   // الكيوسك سيعيد حساب "التالي" (يبدأ من 1)
+    ]);
 
-  // 2) Reset kiosk counter to start fresh from 1
-  await db.ref(`${ROOT}/latestPrinted`).set({ number: 0 });
+    // 2) نبضة للكيوسك ليتصفّر (input/preview)
+    const flagRef = db.ref(`${ROOT}/resetFlag`);
+    await flagRef.set(Date.now());
+    setTimeout(()=>flagRef.set(null), 1500);
 
-  // 3) Clear local memory and visuals
-  served = {};
-  noshow = {};
-  printed = {};
-  nowNum.textContent = "-";
-  nowMrn.textContent = "";
-  [...gridEl.children].forEach(c => c.classList.remove("on", "no", "printed"));
+    // 3) نظافة واجهة الأوبريتور محليًا
+    nowNum.textContent="-"; 
+    nowMrn.textContent="";
+    refreshGridClasses();
 
-  // 4) Reload first range
-  const firstBtn = document.querySelector(".ranges button");
-  if (firstBtn) showRange(1, 100, firstBtn);
+    // ارجعي لأول مدى 1–100
+    const firstBtn = document.querySelector(".ranges button");
+    if (firstBtn) showRange(1, 100, firstBtn);
+  };
 
-  // 5) Visual confirmation
-  const msg = document.getElementById("confirmationMsg");
-  msg.textContent = "✅ Restart done — kiosk starts from 1";
-  setTimeout(() => (msg.textContent = ""), 3000);
-};
   // عكس آخر نداء على اللوحة
   db.ref(`${ROOT}/latest`).on("value",s=>{
     const v=s.val(); if(!v) return;
