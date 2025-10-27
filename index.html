@@ -140,28 +140,31 @@ if (noshow[n]) {
 }
     const mrnVal = await getMrn(n);
     // داخل serve(n) بعد حساب mrnVal
-    await db.ref(`${ROOT}/latest`).set({
-  number: n,
-  ts: Date.now(),
-  mrn: mrnVal || null,
-window: sessionStorage.getItem("counterNum") || null
-// ← رقم الشباك للمنادي
-});
+const effectiveWindow = sessionStorage.getItem("counterNum") || null;
 
-try {
-  const effectiveWindow = sessionStorage.getItem("counterNum") || null;
-await db.ref(`${ROOT}/calls/${n}`).set({
-  number: n,
-  window: effectiveWindow,
-  windowNum: effectiveWindow,
-  mrn: mrnVal || null,
-  ts: firebase.database.ServerValue.TIMESTAMP
-});
+// ثبّت حالة الخدمة + خزّن طابع وقت الخدمة
+await Promise.all([
+  db.ref(`${ROOT}/served/${n}`).set(true),
+  db.ref(`${ROOT}/times/served/${n}`).set(firebase.database.ServerValue.TIMESTAMP),
 
+  // حدّث آخر نداء
+  db.ref(`${ROOT}/latest`).set({
+    number: n,
+    window: effectiveWindow,
+    ts: firebase.database.ServerValue.TIMESTAMP,
+    mrn: mrnVal || null
+  }),
 
-} catch(err) {
-  console.error("Call push error:", err);
-}
+  // لوج النداءات
+  db.ref(`${ROOT}/calls/${n}`).set({
+    number: n,
+    window: effectiveWindow,
+    windowNum: effectiveWindow,
+    mrn: mrnVal || null,
+    ts: firebase.database.ServerValue.TIMESTAMP
+  })
+]);
+
 
     nowNum.textContent = n;
     nowMrn.textContent = mrnVal ? `MRN: ${mrnVal}` : "";
